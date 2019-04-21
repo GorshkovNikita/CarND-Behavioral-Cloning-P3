@@ -1,8 +1,10 @@
 import csv
+
+from keras.engine.saving import load_model
 from scipy import ndimage
 import numpy as np
 from keras.models import Model
-from keras.layers import Input, Lambda, Flatten, Dense, Conv2D, Cropping2D
+from keras.layers import Input, Lambda, Flatten, Dense, Conv2D, Cropping2D, Dropout
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
 
@@ -11,7 +13,8 @@ root_dir = '../data/'
 
 with open(root_dir + 'driving_log.csv') as csv_file:
     reader = csv.reader(csv_file)
-    for line in reader:
+    for index, line in enumerate(reader):
+        # if index % 4 != 0:
         lines.append(line)
 
 train_samples, validation_samples = train_test_split(lines, test_size=0.2)
@@ -39,7 +42,7 @@ def generator(samples, batch_size=32):
                 center_image_flipped = np.fliplr(center_image)
                 left_image_flipped = np.fliplr(left_image)
                 right_image_flipped = np.fliplr(right_image)
-                correction = 0.1
+                correction = 0.2
                 center_angle = float(batch_sample[3])
                 right_angle = center_angle - correction
                 left_angle = center_angle + correction
@@ -57,30 +60,41 @@ def generator(samples, batch_size=32):
             yield shuffle(x_train, y_train)
 
 
-batch_size=256
+batch_size=64
 
 train_generator = generator(train_samples, batch_size=batch_size)
 validation_generator = generator(validation_samples, batch_size=batch_size)
 
+print(lines[0][0])
 sample_image = ndimage.imread(root_dir + 'IMG/' + lines[0][0].split('/')[-1])
 print(sample_image.shape)
 
 # http://images.nvidia.com/content/tegra/automotive/images/2016/solutions/pdf/end-to-end-dl-using-px.pdf
+# todo: grayscale images or convert to nvidia's format (YUV)
 input_layer = Input(shape=sample_image.shape)
 crop_layer = Cropping2D(((70, 25), (0, 0)))(input_layer)
 normalized_layer = Lambda(lambda x: x / 255 + 0.5)(crop_layer)
 conv1 = Conv2D(filters=24, kernel_size=5, strides=(2, 2), activation='relu')(normalized_layer)
-conv2 = Conv2D(filters=36, kernel_size=5, strides=(2, 2), activation='relu')(conv1)
+dropout1 = Dropout(0.2)(conv1)
+conv2 = Conv2D(filters=36, kernel_size=5, strides=(2, 2), activation='relu')(dropout1)
+# dropout2 = Dropout(0.2)(conv2)
 conv3 = Conv2D(filters=48, kernel_size=5, strides=(2, 2), activation='relu')(conv2)
-conv4 = Conv2D(filters=64, kernel_size=3, activation='relu')(conv3)
+dropout3 = Dropout(0.2)(conv3)
+conv4 = Conv2D(filters=64, kernel_size=3, activation='relu')(dropout3)
+# dropout4 = Dropout(0.2)(conv4)
 conv5 = Conv2D(filters=64, kernel_size=3, activation='relu')(conv4)
 flatten = Flatten()(conv5)
-dense1 = Dense(1164)(flatten)
+dropout5 = Dropout(0.2)(flatten)
+dense1 = Dense(1164)(dropout5)
+# dropout6 = Dropout(0.2)(dense1)
 dense2 = Dense(100)(dense1)
-dense3 = Dense(50)(dense2)
+dropout7 = Dropout(0.2)(dense2)
+dense3 = Dense(50)(dropout7)
+# dropout8 = Dropout(0.2)(dense3)
 dense4 = Dense(10)(dense3)
 output_layer = Dense(1)(dense4)
 
+# model = load_model('model.h5')
 
 model = Model(inputs=input_layer, outputs=output_layer)
 model.summary()
