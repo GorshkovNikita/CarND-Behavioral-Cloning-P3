@@ -1,12 +1,18 @@
 import csv
 
-from keras.engine.saving import load_model
 from scipy import ndimage
 import numpy as np
 from keras.models import Model
 from keras.layers import Input, Lambda, Flatten, Dense, Conv2D, Cropping2D, Dropout
 from sklearn.model_selection import train_test_split
 from sklearn.utils import shuffle
+import tensorflow as tf
+from keras.backend.tensorflow_backend import set_session
+
+# limit GPU memory
+config = tf.ConfigProto()
+config.gpu_options.per_process_gpu_memory_fraction = 0.5
+set_session(tf.Session(config=config))
 
 lines = []
 root_dir = '../data/'
@@ -60,7 +66,7 @@ def generator(samples, batch_size=32):
             yield shuffle(x_train, y_train)
 
 
-batch_size=64
+batch_size = 32
 
 train_generator = generator(train_samples, batch_size=batch_size)
 validation_generator = generator(validation_samples, batch_size=batch_size)
@@ -70,7 +76,6 @@ sample_image = ndimage.imread(root_dir + 'IMG/' + lines[0][0].split('/')[-1])
 print(sample_image.shape)
 
 # http://images.nvidia.com/content/tegra/automotive/images/2016/solutions/pdf/end-to-end-dl-using-px.pdf
-# todo: grayscale images or convert to nvidia's format (YUV)
 input_layer = Input(shape=sample_image.shape)
 crop_layer = Cropping2D(((70, 25), (0, 0)))(input_layer)
 normalized_layer = Lambda(lambda x: x / 255 + 0.5)(crop_layer)
@@ -93,8 +98,6 @@ dense3 = Dense(50)(dropout7)
 # dropout8 = Dropout(0.2)(dense3)
 dense4 = Dense(10)(dense3)
 output_layer = Dense(1)(dense4)
-
-# model = load_model('model.h5')
 
 model = Model(inputs=input_layer, outputs=output_layer)
 model.summary()
